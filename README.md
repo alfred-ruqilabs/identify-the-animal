@@ -1,64 +1,134 @@
-# Wildlife Camera Trap — Species ID
+# Wildlife Species ID from Camera Trap Photos
 
-A trap-compatible task that tests vision-LLM species identification on real Serengeti camera trap photos. 20 cases, 10 species × 2 images each. Multiple-choice classification.
+This repository contains a vision benchmark for identifying African wildlife species from real camera trap images.
 
-## What this task tests
+The task uses 20 expert-verified images from Snapshot Serengeti:
+- 10 species
+- 2 images per species
+- 3 difficulty tiers: easy, medium, hard
 
-**Can a vision model correctly identify African wildlife from camera trap photos?**
+The goal is simple: given one image, output the correct species name.
 
-This is a real conservation-tech workload: organizations like Snapshot Serengeti, WildCam, and Wildbook process millions of camera trap images annually. Currently they rely on:
+## Why this task matters
 
-1. Citizen scientists (slow, requires recruitment)
-2. Specialized vision models (Wildlife Insights, MegaDetector — fast but require ML expertise to deploy)
-3. Manual review by ecologists (gold standard, doesn't scale)
+Camera trap image review is a real operational problem in conservation.
+Teams working on wildlife monitoring often process very large image volumes and need to balance:
+- accuracy
+- speed
+- cost per image
+- robustness on difficult shots
 
-A general-purpose vision LLM that can hit 80%+ would let small conservation groups skip building specialized infrastructure. The cost-per-image question is critical because volume is enormous (a single park can generate millions of images/year).
+This task is useful for comparing general-purpose vision models, multimodal agents, and custom pipelines on a practical classification workload.
 
-## What's actually in the eval
+## Species covered
 
-20 images from Snapshot Serengeti, drawn from the **gold standard** subset (expert-verified, not crowdsourced consensus).
+The benchmark includes these 10 species:
+- buffalo
+- cheetah
+- elephant
+- giraffe
+- hyena
+- leopard
+- lion
+- warthog
+- wildebeest
+- zebra
 
-### Species + difficulty breakdown
+## Difficulty design
 
-| Difficulty | Species (2 images each) | Why |
-|---|---|---|
-| **easy** (10 cases) | zebra, wildebeest, buffalo, elephant, giraffe | Iconic, frequent in any training corpus |
-| **medium** (6 cases) | warthog, lion, hyena | Recognisable but more easily confused (lion vs other big cat, hyena vs jackal) |
-| **hard** (4 cases) | cheetah, leopard | Often partially visible, distinctive rosettes vs spots distinction is real forensic skill |
+The cases are intentionally mixed:
 
-The two images per species deliberately span "clear close-up" and "challenging shot" — camera traps frequently capture animals from odd angles, at night, or partially out of frame. This is realistic, not a curated showcase.
+- Easy:
+  zebra, wildebeest, buffalo, elephant, giraffe
+- Medium:
+  warthog, lion, hyena
+- Hard:
+  cheetah, leopard
 
-## Input
+The harder cases include more realistic failure modes such as:
+- partial visibility
+- awkward angle
+- lower visual clarity
+- confusion between visually similar species
 
-Per case the agent receives:
-- `INPUTS["question.txt"]` — multiple-choice prompt with the 10 species options listed
-- `INPUTS["document.jpg"]` — the camera trap photo (77–469 KB JPEG, max 1280 px long edge)
+## Task format
 
-## Expected output
+Each case includes:
+- `inputs/<case_id>/question.txt`
+- `inputs/<case_id>/document.jpg`
+- `expected/<case_id>/answer.json`
 
-A single word on stdout: one of `buffalo`, `cheetah`, `elephant`, `giraffe`, `hyena`, `leopard`, `lion`, `warthog`, `wildebeest`, `zebra`.
+The model should output exactly one species label.
 
-The judge enforces:
-- **Leading word match** — first alpha token must be one of the 10 species names. Preamble like "I see a leopard" fails.
-- **No hedge** — "I cannot determine", "could be either", "the image is unclear", etc. all auto-fail.
+Expected answers are one of:
+- `buffalo`
+- `cheetah`
+- `elephant`
+- `giraffe`
+- `hyena`
+- `leopard`
+- `lion`
+- `warthog`
+- `wildebeest`
+- `zebra`
 
-Each case scores 1.0 / 0.0. Run passes if ≥80% correct.
+## How scoring works
 
-## Why this is a meaningful TrapStreet task
+Each case is scored as pass/fail.
 
-1. **Real-world demand exists today** — conservation organizations have this exact workflow
-2. **Cost-vs-accuracy is the real question** — at the volume of camera trap deployments, even 1% cost reduction is meaningful
-3. **Differentiated difficulty** — easy/medium/hard tiers let the eval reveal which model class is "good enough"
-4. **Out-of-distribution check** — most LLMs were trained on web photos, not camera trap photos (lower resolution, night IR mode, watermarks, motion blur)
+The judge checks:
+1. the first meaningful token matches a valid species label
+2. the answer does not hedge or refuse
 
-## Honest limitations
+Examples that fail:
+- `I think this is a leopard`
+- `could be hyena`
+- `the image is unclear`
 
-- **Only 10 species.** Snapshot Serengeti has 61 species in its label set; we picked the most distinctive 10 for v1.
-- **No "empty" frames.** ~60% of real camera trap frames are empty (false triggers from wind, sun shadows). A real deployment task would include "no animal present" as a class. Skipped for v1 since it's a different test.
-- **Single-species frames only.** Real shots can have multiple species (zebra + wildebeest in same frame is common). Filtered to NumSpecies=1 to avoid ambiguity.
-- **Serengeti-specific.** Different ecosystems have different species. The 10 picked here are East African savanna fauna. A North American camera trap eval would need different species.
-- **No annotation of behavior.** Snapshot Serengeti has rich behavior metadata (standing, resting, eating, moving) that future versions could test.
+Each case gets either:
+- `1.0` for correct
+- `0.0` for incorrect
 
-## Image source & license
+A full run passes when accuracy is at least 80%.
 
-All 20 images derive from Snapshot Serengeti (Swanson et al. 2015), CDLA-Permissive-1.0. See [LICENSE.md](LICENSE.md).
+## How to participate
+
+1. Clone this repository.
+2. Build a solution that reads:
+   - `question.txt`
+   - `document.jpg`
+3. Make your solution print a single species label.
+4. Run the task with your local evaluation harness.
+5. Submit your run to the leaderboard platform you are using.
+
+If you are using a Trap-compatible runner, this repository already includes:
+- `traptask.yaml`
+- `judge.py`
+- `grader.py`
+
+## What this benchmark is good for
+
+This benchmark is good for comparing:
+- vision-language models
+- multimodal agents
+- OCR-free image classification pipelines
+- cheap vs expensive model choices
+
+It is especially useful when you want to know not just which system is best, but which one is good enough for the cost.
+
+## Limitations
+
+- Only 10 species are included.
+- There are no empty frames.
+- All cases are single-species images.
+- The benchmark is Serengeti-specific.
+- It does not test behavior recognition.
+
+So this is a focused species-identification benchmark, not a full wildlife-monitoring benchmark.
+
+## Data source and license
+
+Images derive from Snapshot Serengeti (Swanson et al. 2015).
+License: CDLA-Permissive-1.0.
+
+See `LICENSE.md` for attribution details.
